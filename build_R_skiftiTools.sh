@@ -15,4 +15,4 @@ curl -o enigmaDTI/ENIGMA_DTI_FA_skeleton_mask.nii.gz https://raw.githubuserconte
 
 #Build Docker image
 echo docker build . --no-cache -f Dockerfile.txt -t ashjoll/skiftitools:0.2.0 &> build_R.log
-docker build . -f Dockerfile.txt -t ashjoll/skiftitools:0.2.0
+docker build . --no-cache -f Dockerfile.txt -t ashjoll/skiftitools:0.2.0
