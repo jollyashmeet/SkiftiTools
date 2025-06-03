@@ -62,10 +62,12 @@ parser$add_argument("--maskfile", default="/enigmaDTI/ENIGMA_DTI_FA_skeleton_mas
 parser$add_argument("--name", default="UNKNOWN", help = "Name identifying the data [default UNKNOWN]")
 parser$add_argument("--writecsv", default="No", help = "Yes/No Write output as simple CSV file [default:No]")
 parser$add_argument("--writepng", default="No", help = "Yes/No Write mean intensity as png [default:No] (not available with docker)")
+parser$add_argument("--writemaskcoordinates", default="No", help = "Yes/No Write mask coordinates in ASCII [default:No]")
 parser$add_argument("--filetype", default="ASCII", help = "Output file type ASCII tab separated or rDs R archive file [default:ASCII]")
 parser$add_argument("--compression", default="none", help = "Compression for Skifti data bz2/zip/none [default:none]")
 parser$add_argument("--subjectsfile", default="", help = "Text file for subjectnames, one name in each line [default: use running numbers]")
 parser$add_argument("--selectionfile", default="", help = "Text file for selected subjectnames, one name in each line [default: use all]")
+parser$add_argument("--labelfile", default="", help = "Nifti file for skifti subregions, only masked region is considered [default:empty (no label file)]")
 parser$add_argument("--scalars", default="FA,MD", help = "Comma separated list of scalars from FA,MD,AD,RD [default FA,MD]")
 
 args <- parser$parse_args()
@@ -82,11 +84,13 @@ args <- parser$parse_args()
 #args$name<-'TESTNAME'
 #args$writecsv<-'Yes'
 #args$writepng<-'No'
+#args$writemaskcoordinates<-'No'
 #args$filetype<-'ASCII'
 #args$compression<-'zip'
 #args$subjectsfile<-'/Users/haanme/LIFESPAN_DTI/lifespan_test_data/src-LIFESPAN-2024-02-DTI-tools-V2-FSL-single-shell-ols/CASELIST.txt'
 #args$subjectsfile<-'/Users/haanme/LIFESPAN_DTI/tbss_model_data/tbss_tryout_FA_FB_infant/CASELIST.txt'
 #args$selectionfile<-'/Users/haanme/LIFESPAN_DTI/tbss_model_data/tbss_tryout_FA_FB_infant/CASELIST.txt'
+#args$labelfile<-''
 #args$scalars<-'FA'
 
 # Start log entries
@@ -116,10 +120,12 @@ write_log(odir, paste("     maskfile:[", args$maskfile, "]", sep=""), args$verbo
 write_log(odir, paste("     name:[", args$name, "]", sep=""), args$verbose)
 write_log(odir, paste("     writecsv:[", args$writecsv, "]", sep=""), args$verbose)
 write_log(odir, paste("     writepng:[", args$writepng, "]", sep=""), args$verbose)
+write_log(odir, paste("     writemaskcoordinates:[", args$writemaskcoordinates, "]", sep=""), args$verbose)
 write_log(odir, paste("     filetype:[", args$filetype, "]", sep=""), args$verbose)
 write_log(odir, paste("     compression:[", args$compression, "]", sep=""), args$verbose)
 write_log(odir, paste("     subjectsfile:[", args$subjectsfile, "]", sep=""), args$verbose)
 write_log(odir, paste("     selectionfile:[", args$selectionfile, "]", sep=""), args$verbose)
+write_log(odir, paste("     labelfile:[", args$labelfile, "]", sep=""), args$verbose)
 write_log(odir, paste("     scalars:[", args$scalars, "]", sep=""), args$verbose)
 
 # Resolve input arguments #
@@ -191,6 +197,13 @@ if ( nchar(args$writepng) > 0) {
         writepng<-TRUE
     }
 }
+writemaskcoordinates<-FALSE
+if ( nchar(args$writemaskcoordinates) > 0) {
+    if (str_detect(args$writemaskcoordinates, "Yes")) {
+        write_print("Writing mask coordinates in ASCII, this may take more time ", args$verbose-1)
+        writemaskcoordinates<-TRUE
+    }
+}
 if(args$filetype=="ASCII") {
   write_print("Using plain ASCII for Skifti data", args$verbose-1)
   datatype="volume-per-row-ASCII"
@@ -234,6 +247,12 @@ for(scalar in scalars) {
   }
 }
 
+if ( nchar(args$labelfile) > 0) {
+    write_log(odir, paste("Label mask file:", args$labelfile, sep=''), args$labelfile)
+} else {
+    args$labelfile=NULL
+}
+
 # Handle one scalar at a time
 for(scalar in scalars) {
   write_log(odir, paste("Starting to process ", scalar, sep=''), args$verbose)
@@ -259,7 +278,7 @@ for(scalar in scalars) {
   }
   
   # Create skifti object
-  sk<-Nifti2Skifti(f1, f2, selected_indexes)
+  sk<-Nifti2Skifti(f1, f2, selected_indexes, write_coordinates=writemaskcoordinates, Nifti_labels=args$labelfile, verbose=(args$verbose > 0))
   if(length(rownames(sk$data)) != length(subjectnames)) {
     write_log(odir, paste("Rows in data ", length(rownames(sk$data)), " and number of subjectsnames ", length(subjectnames), " do not match", sep=''), args$verbose)
     stop("Rows in data ", length(rownames(sk$data)), " and number of subjectsnames ", length(subjectnames), " do not match", sep='')
@@ -288,7 +307,7 @@ for(scalar in scalars) {
 
   # Set output datatype and write skifti data
   sk$datatype=datatype
-  skfilename<-writeSkifti(sk, basename=paste(odir, '/', name, '_', scalar, '_Skiftidata', sep=''), overwrite = TRUE, compress=args$compression)
+  skfilename<-writeSkifti(sk, basename=paste(odir, '/', name, '_', scalar, '_Skiftidata', sep=''), overwrite = TRUE, compress=args$compression, verbose=(args$verbose > 0))
   files_to_zip<-c(files_to_zip, skfilename)
   files_to_be_removed<-c(files_to_be_removed, skfilename)
   write_log(odir, paste("Skifti data written to ", skfilename, sep=''), args$verbose)
